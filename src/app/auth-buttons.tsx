@@ -45,7 +45,8 @@ export function SignUpButton() {
             setIsLoading(false);
           });
       }}
-      className="font-mono"
+      className="font-mono font-bold"
+      size="lg"
       disabled={isLoading}
     >
       {isLoading ? (
@@ -70,7 +71,7 @@ export function LogOutButton() {
           .signOut({
             fetchOptions: {
               onSuccess: () => {
-                router.push("/auth");
+                router.push("/");
               },
             },
           })
