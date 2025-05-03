@@ -1,5 +1,5 @@
 {
-  "name": "imagen",
+  "name": "kitte",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -37,12 +37,14 @@
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.43.1",
+    "intl-segmenter-polyfill": "^0.4.4",
     "lucide-react": "^0.503.0",
     "next": "15.3.1",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",
+    "satori": "^0.12.2",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
     "vaul": "^1.1.2",

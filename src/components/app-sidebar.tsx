@@ -1,13 +1,11 @@
 "use client";
 
 import {
-  IconCamera,
   IconCheese,
-  IconFileAi,
-  IconFileDescription,
   IconHelp,
   IconPhotoHexagon,
   IconSettings,
+  IconDashboard,
 } from "@tabler/icons-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -28,58 +26,16 @@ const data = {
   navMain: [
     {
       title: "Want something?",
-      url: "/terminal/shard",
+      url: "/terminal/ask",
       icon: IconCheese,
     },
-  ],
-  navClouds: [
     {
-      title: "Capture",
-      icon: IconCamera,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: IconFileDescription,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: IconFileAi,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
+      title: "Dashboard",
+      url: "/terminal",
+      icon: IconDashboard,
     },
   ],
+  navClouds: [],
   navSecondary: [
     {
       title: "Settings",

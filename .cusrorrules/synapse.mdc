@@ -1,0 +1,525 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# SynapseX Lite MVP - Todo List for Cursor Agent
+
+## Project Goal
+
+Build a Minimal Viable Product (MVP) of the SynapseX Lite system within a Turborepo monorepo. This MVP focuses *solely* on validating the core real-time synchronization of a single, predefined CRDT document between multiple JavaScript clients (one Next.js, one TanStack Start) and an Elixir backend using Phoenix Channels. Persistence on the client will use IndexedDB via Dexie.js. Deployment will be handled via Docker Compose.
+
+**Core Principles for MVP:**
+
+*   **Simplicity:** Minimal features, minimal error handling, focus on the happy path.
+*   **Speed:** Target completion within 1-2 developer days.
+*   **Validation:** Prove the core CRDT sync mechanism works end-to-end.
+*   **Explicitness:** Provide detailed instructions to minimize agent errors.
+
+**Tech Stack:**
+
+*   **Monorepo:** Turborepo
+*   **Backend:** Elixir 1.15+ / OTP 26+, Phoenix 1.7+
+*   **Realtime:** Phoenix Channels (WebSockets)
+*   **Client Frameworks:** Next.js 14+, TanStack Start (latest)
+*   **Client State/DB:** Dexie.js (latest), IndexedDB
+*   **CRDTs:** `yjs-core` (latest) for JS, `delta_crdt` (latest) for Elixir
+*   **Serialization:** JSON
+*   **Deployment:** Docker, Docker Compose
+
+**Hardcoded Values for MVP:**
+
+*   **Document ID:** `"mvp_doc"`
+*   **CRDT Structure:** A Map/Object like `{ text: string, counter: number }`. We will use `Y.Map` on the client and `DeltaCrdt.Map` on the server.
+*   **Phoenix Channel Topic:** `"sync:mvp_doc"`
+*   **WebSocket Events:**
+    *   Client -> Server: `"update_in"` (payload: serialized CRDT update/state)
+    *   Server -> Client: `"update_out"` (payload: serialized CRDT update/state)
+    *   Client -> Server: `"request_state"` (payload: null) - For initial sync
+    *   Server -> Client: `"initial_state"` (payload: serialized CRDT state)
+
+---
+
+## Phase 1: Project Setup & Core Dependencies (Est: 2-3 Hours)
+
+**Intention:** Establish the monorepo structure, create the initial applications and shared packages, and install essential dependencies. This forms the skeleton of our project.
+
+*   **Task 1.1: Initialize Turborepo Monorepo**
+    *   **Action:** Run `npx create-turbo@latest synapsex-lite-mvp` in your development directory. Choose your preferred package manager (npm/yarn/pnpm).
+    *   **Purpose:** Create the root monorepo structure with basic configuration.
+    *   **Verify:** A `turbo.json` file and `apps`, `packages` directories are created.
+
+*   **Task 1.2: Create Elixir Backend App**
+    *   **Action:**
+        1.  Navigate to the `apps` directory: `cd apps`.
+        2.  Create a new Phoenix project (non-HTML, no Ecto): `mix phx.new elixir_server --no-ecto --no-html --no-assets --no-dashboard --no-mailer --no-gettext`. Ensure you have Elixir/OTP installed or use a Docker image later.
+        3.  Navigate into the new project: `cd elixir_server`.
+        4.  Add necessary dependencies to `mix.exs`: `{:jason, "~> 1.2"}, {:delta_crdt, "~> 0.3"}`.
+        5.  Run `mix deps.get`.
+        6.  Configure basic endpoint in `config/dev.exs` (e.g., port 4000).
+    *   **Purpose:** Set up the Phoenix application structure for the backend server.
+    *   **Verify:** `mix phx.server` starts without errors (ignore DB connection errors if any).
+
+*   **Task 1.3: Create Next.js Client App**
+    *   **Action:**
+        1.  Navigate to the `apps` directory: `cd apps` (if not already there).
+        2.  Create a new Next.js app: `npx create-next-app@latest nextjs-client --typescript --eslint --tailwind --src-dir --app --import-alias "@/*"`. Choose defaults where applicable.
+    *   **Purpose:** Set up the first frontend client application using Next.js App Router.
+    *   **Verify:** `npm run dev` (or equivalent) inside `apps/nextjs-client` starts the dev server.
+
+*   **Task 1.4: Create TanStack Start Client App**
+    *   **Action:**
+        1.  Navigate to the `apps` directory: `cd apps`.
+        2.  Create a new TanStack Start app: `npm create tanstack-start@latest tanstack-client`. Choose TypeScript, File-based routing.
+    *   **Purpose:** Set up the second frontend client application using TanStack Start.
+    *   **Verify:** `npm run dev` (or equivalent) inside `apps/tanstack-client` starts the dev server.
+
+*   **Task 1.5: Create Shared TypeScript Package (`crdt-client`)**
+    *   **Action:**
+        1.  Navigate to the `packages` directory: `cd packages`.
+        2.  Create a directory: `mkdir crdt-client`.
+        3.  Navigate into it: `cd crdt-client`.
+        4.  Initialize npm package: `npm init -y`. Set `"name": "@synapsex-lite/crdt-client"`.
+        5.  Install dependencies: `npm install yjs-core dexie`.
+        6.  Install dev dependencies: `npm install -D typescript @types/node`.
+        7.  Create a `tsconfig.json` for building the package (outputting declaration files). Example:
+            ```json
+            {
+              "compilerOptions": {
+                "target": "ES2016",
+                "module": "CommonJS", // Or ESNext if preferred
+                "declaration": true,
+                "outDir": "./dist",
+                "strict": true,
+                "esModuleInterop": true,
+                "skipLibCheck": true,
+                "forceConsistentCasingInFileNames": true
+              },
+              "include": ["src/**/*"],
+              "exclude": ["node_modules", "dist"]
+            }
+            ```
+        8.  Add a `build` script to `package.json`: `"build": "tsc"`.
+        9.  Create an `src` directory and a placeholder `index.ts` file.
+    *   **Purpose:** Create a shared package for client-side CRDT logic, Dexie setup, and SDK code to be used by both Next.js and TanStack Start apps.
+    *   **Verify:** `npm run build` inside `packages/crdt-client` runs successfully.
+
+*   **Task 1.6: Configure Turborepo**
+    *   **Action:**
+        1.  Edit `turbo.json` at the monorepo root.
+        2.  Define pipelines for building and development. Example:
+            ```json
+            {
+              "$schema": "https://turbo.build/schema.json",
+              "pipeline": {
+                "build": {
+                  "dependsOn": ["^build"],
+                  "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+                },
+                "dev": {
+                  "cache": false,
+                  "persistent": true
+                },
+                "lint": {},
+                "clean": {
+                  "cache": false
+                }
+              }
+            }
+            ```
+        3.  Ensure `package.json` files in `apps/nextjs-client` and `apps/tanstack-client` reference the shared package: `"@synapsex-lite/crdt-client": "workspace:*"`. Run package manager install (`npm install`/`yarn`/`pnpm install`) at the root.
+    *   **Purpose:** Configure Turborepo to manage builds and development servers across the monorepo.
+    *   **Verify:** `turbo run build` runs successfully from the root. `turbo run dev` starts dev servers for all apps (or selected ones via `--filter`).
+
+---
+
+## Phase 2: Elixir Backend Implementation (Est: 2-3 Hours)
+
+**Intention:** Build the core WebSocket handling and in-memory CRDT state management on the Elixir server.
+
+*   **Task 2.1: Configure User Socket and Channel**
+    *   **Action:**
+        1.  In `apps/elixir_server/lib/elixir_server_web/channels/user_socket.ex`:
+            *   Define the socket connection handler.
+            *   Add a channel route: `channel "sync:*", ElixirServerWeb.SyncChannel`.
+            *   Implement `connect/3` (return `{:ok, socket}` for now, no auth).
+            *   Implement `id/1` (return `nil` or a temporary ID).
+        2.  Create the channel file: `apps/elixir_server/lib/elixir_server_web/channels/sync_channel.ex`.
+        3.  Implement basic `join/3` for the hardcoded topic `"sync:mvp_doc"`:
+            ```elixir
+            defmodule ElixirServerWeb.SyncChannel do
+              use Phoenix.Channel
+              alias ElixirServer.SyncSupervisor # We will create this
+
+              def join("sync:mvp_doc", _payload, socket) do
+                # Start or get the GenServer for this document
+                {:ok, _pid} = SyncSupervisor.start_document_server("mvp_doc")
+                {:ok, %{doc_id: "mvp_doc"}, socket}
+              end
+
+              # ... handle_in/handle_out later ...
+            end
+            ```
+    *   **Purpose:** Set up the WebSocket endpoint and the specific channel for handling our document sync.
+    *   **Verify:** A WebSocket client (like Postman or simple JS) can connect to `ws://localhost:4000/socket/websocket` and join the `"sync:mvp_doc"` topic.
+
+*   **Task 2.2: Create Document State GenServer**
+    *   **Action:**
+        1.  Create `apps/elixir_server/lib/elixir_server/sync/document_server.ex`.
+        2.  Implement a `GenServer` to hold the CRDT state for one document.
+        3.  Use `DeltaCrdt.Doc` and `DeltaCrdt.Map` for the state.
+        4.  Implement `start_link/1`, `init/1`, `handle_call(:get_state, _from, state)`, `handle_cast({:apply_update, update_payload, source_socket_id}, state)`.
+        5.  In `handle_cast` for `:apply_update`:
+            *   Deserialize the `update_payload` (assuming it's binary from Yjs `encodeStateAsUpdate`).
+            *   Merge the update into the local `DeltaCrdt.Doc` state using `DeltaCrdt.merge/2`.
+            *   After merging, broadcast the *new full state* or the *received update* to other clients (decide on strategy - full state is simpler for MVP). Use `ElixirServerWeb.Endpoint.broadcast_from(self(), "sync:mvp_doc", "update_out", %{payload: DeltaCrdt.state(new_state)})`. **Important:** Broadcast *from* the GenServer process, not the channel process, to avoid broadcasting back to the sender immediately if using `broadcast_from/4`. Alternatively, use `broadcast/3` and filter on the client-side. Let's use `broadcast/3` for simplicity and filter on client.
+            *   Store the `new_state`.
+        6.  Implement `handle_call(:get_state, _from, state)` to return the current serialized state (`DeltaCrdt.state(state)`).
+            ```elixir
+            defmodule ElixirServer.Sync.DocumentServer do
+              use GenServer
+              require Logger
+
+              # Client API
+              def start_link(doc_id) do
+                GenServer.start_link(__MODULE__, doc_id, name: via_tuple(doc_id))
+              end
+
+              def apply_update(doc_id, update_payload, source_socket_id) do
+                 # Use GenServer.cast for async update
+                 GenServer.cast(via_tuple(doc_id), {:apply_update, update_payload, source_socket_id})
+              end
+
+              def get_state(doc_id) do
+                 GenServer.call(via_tuple(doc_id), :get_state)
+              end
+
+              # Server Callbacks
+              @impl true
+              def init(doc_id) do
+                Logger.info("Starting DocumentServer for #{doc_id}")
+                # Initialize with an empty DeltaCrdt Map
+                initial_doc = DeltaCrdt.new(%{}, actor_id: doc_id <> "_server") # Actor ID needs to be unique
+                |> DeltaCrdt.put([:text], "") # Initialize fields if needed
+                |> DeltaCrdt.put([:counter], 0)
+
+                {:ok, initial_doc}
+              end
+
+              @impl true
+              def handle_call(:get_state, _from, doc_state) do
+                 {:reply, DeltaCrdt.state(doc_state), doc_state}
+              end
+
+              @impl true
+              def handle_cast({:apply_update, update_payload, _source_socket_id}, doc_state) do
+                try do
+                  # Assuming update_payload is binary from Yjs encodeStateAsUpdate
+                  # Need a way to merge Yjs binary update into DeltaCrdt.
+                  # *** SIMPLIFICATION FOR MVP: Assume payload is JSON {field: value} ***
+                  # Let's pivot: Client sends JSON {field: key, value: val} or {op: 'inc_counter'}
+                  # Server uses DeltaCrdt operations directly.
+
+                  # Example: Handle simple map update {field: "text", value: "new text"}
+                  # Or {op: "inc_counter"}
+                  {new_doc_state, event_payload} = case update_payload do
+                    %{"field" => field, "value" => value} ->
+                      Logger.debug("Applying update: #{field} -> #{value}")
+                      new_state = DeltaCrdt.put(doc_state, [String.to_atom(field)], value)
+                      {new_state, %{state: DeltaCrdt.values(new_state)}} # Send full values map
+                    %{"op" => "inc_counter"} ->
+                       Logger.debug("Applying update: inc_counter")
+                       # DeltaCrdt doesn't have a simple counter merge, use put
+                       current_counter = DeltaCrdt.get(doc_state, [:counter], 0)
+                       new_state = DeltaCrdt.put(doc_state, [:counter], current_counter + 1)
+                       {new_state, %{state: DeltaCrdt.values(new_state)}} # Send full values map
+                    _ ->
+                      Logger.warn("Received unknown update payload: #{inspect(update_payload)}")
+                      {doc_state, nil} # No change, no broadcast
+                  end
+
+                  if event_payload do
+                    # Broadcast the new full state (map of values)
+                    ElixirServerWeb.Endpoint.broadcast("sync:mvp_doc", "update_out", event_payload)
+                  end
+
+                  {:noreply, new_doc_state}
+                rescue
+                  e -> Logger.error("Error applying update: #{inspect(e)} \n #{inspect(System.stacktrace())}")
+                       {:noreply, doc_state} # Keep old state on error
+                end
+              end
+
+              # Helper to name the process
+              defp via_tuple(doc_id), do: {:via, Registry, {ElixirServer.SyncRegistry, doc_id}}
+            end
+            ```
+    *   **Purpose:** Encapsulate the state and CRDT logic for a single document, ensuring atomic updates and broadcasts.
+    *   **Verify:** Can manually test GenServer functions using `iex -S mix`.
+
+*   **Task 2.3: Create Dynamic Supervisor and Registry**
+    *   **Action:**
+        1.  Create `apps/elixir_server/lib/elixir_server/sync/sync_supervisor.ex`. Implement a `DynamicSupervisor`.
+        2.  Create `apps/elixir_server/lib/elixir_server/sync/sync_registry.ex`. Implement a `Registry` using `keys: :unique`.
+        3.  Add `ElixirServer.SyncRegistry` and `ElixirServer.SyncSupervisor` to the main application supervision tree in `apps/elixir_server/lib/elixir_server/application.ex`.
+        4.  Implement `SyncSupervisor.start_document_server(doc_id)` which calls `DynamicSupervisor.start_child(__MODULE__, {ElixirServer.Sync.DocumentServer, doc_id})`.
+    *   **Purpose:** Allow `DocumentServer` processes to be started dynamically and uniquely named/registered for easy access.
+    *   **Verify:** Joining the channel (Task 2.1) successfully starts the `DocumentServer` process which can be seen in the observer or logs.
+
+*   **Task 2.4: Implement Channel `handle_in` and Initial State Request**
+    *   **Action:**
+        1.  In `apps/elixir_server/lib/elixir_server_web/channels/sync_channel.ex`:
+            *   Implement `handle_in("update_in", payload, socket)`:
+                *   Call `ElixirServer.Sync.DocumentServer.apply_update(socket.assigns.doc_id, payload, socket.id)`.
+                *   Return `{:noreply, socket}`.
+            *   Implement `handle_in("request_state", _payload, socket)`:
+                *   Call `state_payload = ElixirServer.Sync.DocumentServer.get_state(socket.assigns.doc_id)`.
+                *   Push the current state back *only to the requester*: `push socket, "initial_state", %{payload: state_payload}`.
+                *   Return `{:noreply, socket}`.
+    *   **Purpose:** Handle incoming messages from clients to update state or request the initial state.
+    *   **Verify:** Sending `"update_in"` or `"request_state"` messages via a WebSocket client triggers the corresponding GenServer functions (check logs). Sending `"request_state"` results in an `"initial_state"` message being pushed back.
+
+---
+
+## Phase 3: Shared Client Logic (`crdt-client` Package) (Est: 3-4 Hours)
+
+**Intention:** Implement the core client-side logic for managing CRDT state, persistence via Dexie, and WebSocket communication.
+
+*   **Task 3.1: Setup Dexie Database**
+    *   **Action:**
+        1.  In `packages/crdt-client/src/db.ts`:
+            *   Import `Dexie`.
+            *   Define a class `SynapseXDB extends Dexie`.
+            *   Define the schema: `documents!: Table<{ id: string; data: Uint8Array; }>;` (Store raw Yjs update binary).
+            *   In the constructor, define the store: `this.version(1).stores({ documents: 'id' });`.
+            *   Export an instance: `export const db = new SynapseXDB();`.
+    *   **Purpose:** Define the IndexedDB structure using Dexie.
+    *   **Verify:** Code compiles.
+
+*   **Task 3.2: Implement Persistence Functions**
+    *   **Action:**
+        1.  In `packages/crdt-client/src/persistence.ts`:
+            *   Import `db` from `./db`.
+            *   Import `Y` from `yjs-core`.
+            *   Implement `async function loadLocalYjsDoc(docId: string): Promise<Uint8Array | null>`: Fetches from `db.documents` by `docId`, returns `data` field.
+            *   Implement `async function saveLocalYjsDoc(docId: string, data: Uint8Array): Promise<void>`: Uses `db.documents.put({ id: docId, data })`.
+    *   **Purpose:** Abstract loading/saving the raw Yjs document state from/to IndexedDB.
+    *   **Verify:** Code compiles.
+
+*   **Task 3.3: Implement Core SDK Class Structure**
+    *   **Action:**
+        1.  In `packages/crdt-client/src/client.ts`:
+            *   Import `Y` from `yjs-core`.
+            *   Import persistence functions.
+            *   Import `EventEmitter` (e.g., from `eventemitter3` or Node's built-in if usable). `npm install eventemitter3`.
+            *   Define `SynapseXClientLite extends EventEmitter`.
+            *   Add constructor, properties for `docId`, `yDoc`, `webSocket`, `isConnected`, `serverState`.
+            *   Define methods (stubs for now): `connect(url: string)`, `disconnect()`, `_handleMessage(event: MessageEvent)`, `_requestInitialState()`, `_applyServerUpdate(update: Uint8Array)`, `_sendUpdateToServer(update: Uint8Array)`, `getYDoc(): Y.Doc`, `getMap(): Y.Map<unknown>`.
+    *   **Purpose:** Create the main class structure for the client SDK.
+    *   **Verify:** Code compiles.
+
+*   **Task 3.4: Implement Connection Management**
+    *   **Action:**
+        1.  In `client.ts`, implement `connect(url: string)`:
+            *   Create `new WebSocket(url)`.
+            *   Assign `onopen`, `onmessage`, `onerror`, `onclose` handlers.
+            *   `onopen`: Set `isConnected = true`, emit `connected`, call `_requestInitialState()`.
+            *   `onmessage`: Call `_handleMessage(event)`.
+            *   `onerror`: Log error, emit `error`.
+            *   `onclose`: Set `isConnected = false`, emit `disconnected`.
+        2.  Implement `disconnect()`: Close WebSocket if open.
+    *   **Purpose:** Handle WebSocket lifecycle events.
+    *   **Verify:** Calling `connect` attempts to establish a WebSocket connection.
+
+*   **Task 3.5: Implement Yjs Document Handling & Local Persistence**
+    *   **Action:**
+        1.  In `client.ts`, add an `async initializeYDoc(docId: string)` method:
+            *   Set `this.docId = docId`.
+            *   Create `this.yDoc = new Y.Doc()`.
+            *   Load persisted state: `const persistedState = await loadLocalYjsDoc(docId);`.
+            *   If `persistedState`, apply it: `Y.applyUpdate(this.yDoc, persistedState);`.
+            *   Listen for local changes: `this.yDoc.on('update', (update: Uint8Array, origin: any) => { ... });`.
+            *   Inside the `'update'` handler:
+                *   Save locally: `await saveLocalYjsDoc(this.docId, Y.encodeStateAsUpdate(this.yDoc));`.
+                *   If the change didn't originate from the server (`origin !== this`) and `isConnected`, send update: `this._sendUpdateToServer(update);`.
+                *   Emit a local change event: `this.emit('localUpdate', this.getMap().toJSON());`.
+        2.  Call `initializeYDoc` at the end of the constructor or via a separate init method.
+        3.  Implement `getYDoc()` and `getMap()` getters.
+    *   **Purpose:** Manage the Yjs document instance, load/save it, and react to local changes.
+    *   **Verify:** Creating a client instance loads/initializes the Yjs doc. Local changes trigger the 'update' handler.
+
+*   **Task 3.6: Implement Server Communication Logic**
+    *   **Action:**
+        1.  In `client.ts`:
+            *   Implement `_requestInitialState()`: Send `JSON.stringify({ event: "request_state", payload: null })` via WebSocket.
+            *   Implement `_sendUpdateToServer(update: Uint8Array)`:
+                *   **PIVOT RECALL:** Server expects JSON `{field, value}` or `{op}`. Client needs to translate Yjs Map changes.
+                *   **NEW ACTION:** Modify the `yDoc.on('update')` handler. Instead of sending the binary `update`, *inspect the change* or simply send the *full map state* on every change for MVP simplicity. Let's send the full map state.
+                *   **REVISED `_sendUpdateToServer`:** This function might not be needed if we send state directly from the 'update' handler.
+                *   **REVISED `'update'` handler:**
+                    ```typescript
+                    this.yDoc.on('update', async (update: Uint8Array, origin: any) => {
+                      const currentState = this.getMap().toJSON(); // Get current map state
+                      await saveLocalYjsDoc(this.docId, Y.encodeStateAsUpdate(this.yDoc)); // Save binary state
+
+                      // If change is local and connected, send JSON state to server
+                      if (origin !== this && this.isConnected && this.webSocket?.readyState === WebSocket.OPEN) {
+                        // *** PIVOT AGAIN: Server expects specific ops, not full state ***
+                        // Let's stick to the Elixir plan: send specific ops.
+                        // This requires parsing the 'update' event or providing specific write methods.
+                        // FOR MVP SPEED: Let's make the client *only* send specific ops via dedicated methods,
+                        // bypassing direct Yjs update sending.
+
+                        // Remove sending logic from 'update' handler for now.
+                        // Just save and emit local event.
+                        this.emit('localUpdate', currentState);
+                      }
+                    });
+                    ```
+            *   **NEW METHODS:** Add methods like `setText(value: string)` and `incrementCounter()` to the client class:
+                ```typescript
+                setText(value: string) {
+                  this.getMap().set('text', value); // Apply locally to Yjs
+                  if (this.isConnected && this.webSocket?.readyState === WebSocket.OPEN) {
+                    this.webSocket.send(JSON.stringify({ event: "update_in", payload: { field: "text", value: value } }));
+                  }
+                }
+
+                incrementCounter() {
+                  const current = this.getMap().get('counter') as number || 0;
+                  this.getMap().set('counter', current + 1); // Apply locally
+                   if (this.isConnected && this.webSocket?.readyState === WebSocket.OPEN) {
+                    this.webSocket.send(JSON.stringify({ event: "update_in", payload: { op: "inc_counter" } }));
+                  }
+                }
+                ```
+            *   Implement `_handleMessage(event: MessageEvent)`:
+                *   Parse `JSON.parse(event.data)`.
+                *   If `event === "initial_state"` or `event === "update_out"`:
+                    *   Get the `payload.state` (which is the full map `{text: ..., counter: ...}`).
+                    *   Apply changes to local Yjs doc *without* triggering send:
+                        ```typescript
+                        this.yDoc.transact(() => {
+                          const serverState = parsedMessage.payload.state;
+                          if (serverState.text !== undefined) this.getMap().set('text', serverState.text);
+                          if (serverState.counter !== undefined) this.getMap().set('counter', serverState.counter);
+                        }, this); // 'this' is the origin, prevents echo
+                        ```
+                    *   Emit update event: `this.emit('remoteUpdate', this.getMap().toJSON());`.
+    *   **Purpose:** Handle sending specific operations and receiving full state updates from the server, applying them to the local Yjs document.
+    *   **Verify:** Calling `setText` or `incrementCounter` sends JSON message. Receiving `"update_out"` applies changes locally and emits event.
+
+*   **Task 3.7: Export Client from Package**
+    *   **Action:** Export `SynapseXClientLite` and any necessary types from `packages/crdt-client/src/index.ts`. Run `npm run build` in the package.
+    *   **Purpose:** Make the client SDK usable by the frontend applications.
+    *   **Verify:** Build succeeds, exports are available.
+
+---
+
+## Phase 4: Frontend Integration (Est: 2-3 Hours)
+
+**Intention:** Connect the UI components in both Next.js and TanStack Start apps to the shared `crdt-client` SDK to display and modify the synced data.
+
+*   **Task 4.1: Integrate SDK in Next.js App**
+    *   **Action:**
+        1.  In `apps/nextjs-client`, ensure `@synapsex-lite/crdt-client` is listed as a dependency and installed.
+        2.  Create a client component (e.g., `src/components/synced-doc.tsx`) using `"use client";`.
+        3.  Import `SynapseXClientLite`.
+        4.  Use `useState` for connection status and document data (`{ text: string, counter: number }`).
+        5.  Use `useRef` to hold the `SynapseXClientLite` instance.
+        6.  Use `useEffect` for initialization:
+            *   Create client instance: `clientRef.current = new SynapseXClientLite();`.
+            *   Initialize Yjs doc: `await clientRef.current.initializeYDoc("mvp_doc");`.
+            *   Set initial UI state: `setData(clientRef.current.getMap().toJSON());`.
+            *   Setup event listeners (`connected`, `disconnected`, `localUpdate`, `remoteUpdate`) to update component state.
+            *   Connect: `clientRef.current.connect("ws://localhost:4000/socket/websocket");`.
+            *   Return cleanup function to call `clientRef.current.disconnect()`.
+        7.  Render the data (`data.text`, `data.counter`).
+        8.  Add input field for text, button for counter.
+        9.  Input `onChange` calls `clientRef.current.setText(e.target.value)`.
+        10. Button `onClick` calls `clientRef.current.incrementCounter()`.
+        11. Add the component to a page (e.g., `src/app/page.tsx`).
+    *   **Purpose:** Display and interact with the synced document in the Next.js UI.
+    *   **Verify:** Next.js app loads, connects, displays initial/synced data, and allows modification which reflects locally and triggers server send.
+
+*   **Task 4.2: Integrate SDK in TanStack Start App**
+    *   **Action:**
+        1.  In `apps/tanstack-client`, ensure `@synapsex-lite/crdt-client` is listed as a dependency and installed.
+        2.  Create a component (e.g., `src/routes/index.tsx`).
+        3.  Follow similar logic as Task 4.1 using TanStack Start/React primitives (`useState`, `useEffect`, `useRef`).
+        4.  Import `SynapseXClientLite`.
+        5.  Initialize client, connect, listen to events, update local component state.
+        6.  Render data and input elements.
+        7.  Connect input/button actions to `client.setText()` / `client.incrementCounter()`.
+    *   **Purpose:** Display and interact with the synced document in the TanStack Start UI.
+    *   **Verify:** TanStack Start app loads, connects, displays initial/synced data, and allows modification which reflects locally and triggers server send.
+
+*   **Task 4.3: Test End-to-End Sync**
+    *   **Action:**
+        1.  Run the Elixir server (`mix phx.server` inside `apps/elixir_server`).
+        2.  Run the Next.js client (`npm run dev` inside `apps/nextjs-client`).
+        3.  Run the TanStack Start client (`npm run dev` inside `apps/tanstack-client`).
+        4.  Open both clients in separate browser windows/tabs.
+        5.  Verify both connect and display initial/consistent state (might require sending `request_state` on connect if IndexedDB is empty).
+        6.  Modify text in one client. Verify it updates near instantly in the other.
+        7.  Increment counter in the other client. Verify it updates in the first.
+        8.  Modify both text and counter rapidly or simultaneously across clients. Verify eventual consistency (both clients show the same final state based on server logic). Check Elixir logs for received messages and broadcasts. Check browser console logs. Check IndexedDB state.
+    *   **Purpose:** Validate the entire MVP sync loop across multiple clients.
+    *   **Verify:** Data syncs correctly and consistently between both clients via the Elixir server.
+
+---
+
+## Phase 5: Containerization & Deployment (Est: 1-2 Hours)
+
+**Intention:** Package the applications using Docker for easy local deployment and testing using Docker Compose.
+
+*   **Task 5.1: Dockerfile for Elixir Server**
+    *   **Action:**
+        1.  Create `apps/elixir_server/Dockerfile`.
+        2.  Use a multi-stage build based on official Elixir/OTP images.
+        3.  Stage 1: Build dependencies and compile the release.
+        4.  Stage 2: Copy the built release from Stage 1 into a minimal runtime image.
+        5.  Expose the application port (e.g., 4000).
+        6.  Set the `CMD` to run the release (`/app/bin/server`). Remember environment variables needed for Phoenix (e.g., `SECRET_KEY_BASE`).
+    *   **Purpose:** Define how to build a production-ready Docker image for the Elixir backend.
+    *   **Verify:** `docker build .` inside `apps/elixir_server` completes successfully.
+
+*   **Task 5.2: Dockerfile for Next.js Client**
+    *   **Action:**
+        1.  Create `apps/nextjs-client/Dockerfile`.
+        2.  Use a multi-stage build based on official Node.js images.
+        3.  Stage 1 (Deps): Copy `package.json`, lockfiles, install dependencies (including workspace protocol resolution).
+        4.  Stage 2 (Build): Copy source code (including shared package source if needed, or rely on Turborepo build output), copy deps from Stage 1, run `npm run build`. Use Turborepo's pruned workspace feature if possible (`turbo prune --scope=nextjs-client --docker`).
+        5.  Stage 3 (Runner): Copy build output (`.next`, `public`, `package.json`, `node_modules`) from Stage 2 into a minimal Node.js image. Expose port 3000. Set `CMD ["npm", "start"]`.
+    *   **Purpose:** Define how to build a production-ready Docker image for the Next.js frontend.
+    *   **Verify:** `docker build .` inside `apps/nextjs-client` (or from root using build context) completes successfully.
+
+*   **Task 5.3: Dockerfile for TanStack Start Client**
+    *   **Action:**
+        1.  Create `apps/tanstack-client/Dockerfile`.
+        2.  Follow similar multi-stage build logic as Task 5.2, adapting build commands (`npm run build`) and start commands (`npm run start`) specific to TanStack Start's production server. Expose its port (e.g., 3001).
+    *   **Purpose:** Define how to build a production-ready Docker image for the TanStack Start frontend.
+    *   **Verify:** `docker build .` inside `apps/tanstack-client` (or from root) completes successfully.
+
+*   **Task 5.4: Create Docker Compose File**
+    *   **Action:**
+        1.  Create `docker-compose.yml` at the monorepo root.
+        2.  Define services for `elixir_server`, `nextjs_client`, `tanstack_client`.
+        3.  Use the Dockerfiles created previously (`context` and `dockerfile` properties).
+        4.  Map ports (e.g., `4000:4000`, `3000:3000`, `3001:3001`).
+        5.  Set necessary environment variables (e.g., `SECRET_KEY_BASE` for Elixir, WebSocket URL for clients if different from default localhost).
+        6.  Configure build contexts correctly relative to the `docker-compose.yml` file.
+    *   **Purpose:** Define the multi-container application setup for easy local execution.
+    *   **Verify:** `docker compose build` builds all images. `docker compose up` starts all three services successfully.
+
+*   **Task 5.5: Test Dockerized Setup**
+    *   **Action:**
+        1.  Run `docker compose up --build`.
+        2.  Access `http://localhost:3000` (Next.js) and `http://localhost:3001` (TanStack Start).
+        3.  Perform the E2E test steps from Task 4.3 again within the containerized environment. Ensure clients connect to the containerized Elixir server (e.g., `ws://elixir_server:4000/socket/websocket` or `ws://localhost:4000/...` depending on network setup). Update client connection URLs if necessary.
+    *   **Purpose:** Validate that the entire application works correctly when run via Docker Compose.
+    *   **Verify:** Sync works as expected in the containerized environment.
+
+---
+
+MVP Complete! This setup validates the core real-time CRDT sync mechanism.

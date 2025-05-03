@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project: Kitte v0.0.1
+
+# Features:
+- Users can choose from HTML/JSX templates (ideally posters or banners) from the `/terminal/shards` page
+- When selected, it will appear on a center canvas in the current dashboard's `/terminal/sh` page
+- On the canvas, users will be able to edit the texts on the poster/banner
+- In the poster/banner, users will be able to change the image by uploading new one (using uploadthing)
+- Users will be able to save and/or download the poster/banner as SVG (using Satori & Tweemoji to convert templates into SVG) with a button click
+
+## Tech stack
+- NextJS 15
+- React 19
+- Tailwindcss 4
+- Shadcn-UI
+- Sharp
+- Sonner
+- Satori
+
+## Tasks
+
+- [ ] write a backend function that accepts an SVG and converts it into WEBP/PNG/JPEG using sharp
+- [ ] write a frontend UI that let's user upload an
