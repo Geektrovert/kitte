@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { ThemeProvider } from "next-themes";
 
 export default async function Layout({
   children,
@@ -13,14 +12,5 @@ export default async function Layout({
     return redirect("/");
   }
 
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <div>{children}</div>
-    </ThemeProvider>
-  );
+  return children;
 }

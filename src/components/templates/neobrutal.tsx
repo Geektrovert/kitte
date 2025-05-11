@@ -1,9 +1,4 @@
-"use client";
-import { useRef, useEffect } from "react";
-import { Sparkles } from "lucide-react";
-import Image from "next/image";
-
-import { createShader } from "@/components/shaders/paper";
+/* eslint-disable @next/next/no-img-element */
 
 interface PosterCardProps {
   name?: string;
@@ -26,63 +21,52 @@ export default function PosterCard({
   badgeText = "NEW!",
   badgeColor,
 }: PosterCardProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (canvasRef.current) {
-      const shader = createShader(canvasRef.current, {
-        type: "noise",
-        density: 0.5,
-        speed: 0,
-        color: accentColor,
-      });
-
-      return () => {
-        shader.destroy();
-      };
-    }
-  }, [accentColor]);
-
   return (
     <div
-      className={`relative ${backgroundColor} rounded-2xl overflow-hidden p-6`}
-      style={{
-        width: "100%",
-        maxWidth: "600px",
-        aspectRatio: "4/3",
-      }}
+      tw={`relative ${backgroundColor} overflow-hidden p-6 flex w-full max-w-[800px] max-h-[450px] flex-col items-center justify-center`}
     >
-      {/* Background canvas for shader effect */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full opacity-50 pointer-events-none"
-      />
-
       {/* Tagline badge */}
-      <div className="relative z-10 flex justify-between items-start mb-4">
+      <div tw="relative z-10 flex flex-col w-full items-start justify-start mb-4">
         <div
-          className={`${taglineColor} px-4 py-2 rounded-lg font-bold text-black text-xl transform rotate-1`}
+          tw={`${taglineColor} px-4 py-2 font-bold text-black text-lg md:text-xl transform rotate-1 flex items-start font-sans`}
         >
           {tagline}
         </div>
 
         {/* Attention-grabbing starburst */}
-        <div className="relative">
-          <div className="absolute -top-2 -right-2 w-16 h-16">
-            <div className="absolute inset-0 bg-yellow-400 rounded-full"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-black" />
+        <div tw="relative flex items-center justify-center w-full">
+          <div tw="absolute -top-2 -right-2 w-16 h-16 flex items-center justify-center">
+            <div tw="absolute inset-0 bg-yellow-400 rounded-full flex"></div>
+            <div tw="absolute inset-0 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                className="lucide lucide-sparkles-icon lucide-sparkles flex"
+              >
+                <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                <path d="M20 3v4" />
+                <path d="M22 5h-4" />
+                <path d="M4 17v2" />
+                <path d="M5 18H3" />
+              </svg>
             </div>
           </div>
         </div>
       </div>
 
       {/* Repeated name background */}
-      <div className="relative z-0">
+      <div tw="relative z-0 flex flex-col w-full items-start gap-2">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="text-6xl font-extrabold text-white/90 tracking-tight leading-none my-2"
+            tw="text-4xl md:text-5xl font-extrabold text-white/90 tracking-normal leading-tight my-2 flex items-start font-sans"
           >
             {name}
           </div>
@@ -90,25 +74,19 @@ export default function PosterCard({
       </div>
 
       {/* Circular image */}
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
-        <div className="relative flex items-center justify-center">
-          <div className="w-[50%] h-auto rounded-full overflow-hidden border-4 border-black">
-            <Image
-              src={image}
-              width={300}
-              height={300}
-              alt={name}
-              className="w-full h-full object-cover"
-            />
+      <div tw="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center">
+        <div tw="relative flex flex-col items-center justify-center">
+          <div tw="w-[50%] h-auto rounded-full overflow-hidden border-4 border-black flex items-center justify-center">
+            <img src={image} alt={name} tw="w-full h-full object-cover flex" />
           </div>
 
           {/* Accent elements */}
           <div
-            className={`absolute -bottom-4 -left-6 w-16 h-8 ${accentColor} transform rotate-12`}
+            tw={`absolute -bottom-4 -left-6 w-16 h-8 ${accentColor} transform rotate-12 flex`}
           ></div>
 
           {/* Star decoration */}
-          <div className="absolute -top-8 right-4 transform rotate-12">
+          <div tw="absolute -top-8 right-4 transform rotate-12 flex items-center justify-center">
             <svg
               width="40"
               height="40"
@@ -128,16 +106,16 @@ export default function PosterCard({
           {/* Badge if provided */}
           {badgeText && (
             <div
-              className={`absolute -bottom-2 right-0 ${
+              tw={`absolute -bottom-2 right-0 ${
                 badgeColor || "bg-yellow-400"
-              } px-3 py-1 rounded-lg transform rotate-6 font-bold text-black border-2 border-black`}
+              } px-3 py-1 rounded-lg transform rotate-6 font-bold text-black border-2 border-black flex items-center justify-center`}
             >
               {badgeText}
             </div>
           )}
 
           {/* Extra decorative elements */}
-          <div className="absolute -left-10 top-1/2 transform -translate-y-1/2">
+          <div tw="absolute -left-10 top-1/2 transform -translate-y-1/2 flex items-center justify-center">
             <svg
               width="24"
               height="24"
@@ -160,9 +138,9 @@ export default function PosterCard({
       </div>
 
       {/* Footer logo */}
-      <div className="absolute bottom-4 right-4 z-30">
-        <div className="flex items-center">
-          <div className="w-6 h-6 mr-1">
+      <div tw="absolute bottom-4 right-4 z-30 flex items-center justify-center">
+        <div tw="flex items-center">
+          <div tw="w-6 h-6 mr-1 flex items-center justify-center">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -177,18 +155,20 @@ export default function PosterCard({
               <path d="M12 18l4-4h-8l4 4z" fill="black" />
             </svg>
           </div>
-          <span className="font-bold text-black">TinyTalks</span>
+          <span tw="font-bold text-black flex items-center font-sans">
+            TinyTalks
+          </span>
         </div>
       </div>
 
       {/* Additional decorative elements */}
-      <div className="absolute bottom-10 left-4 z-10">
-        <div className={`w-20 h-4 ${accentColor} transform -rotate-12`}></div>
+      <div tw="absolute bottom-10 left-4 z-10 flex items-center justify-center">
+        <div tw={`w-20 h-4 ${accentColor} transform -rotate-12 flex`}></div>
       </div>
 
-      <div className="absolute top-20 right-10 z-10">
+      <div tw="absolute top-20 right-10 z-10 flex items-center justify-center">
         <div
-          className={`w-6 h-6 ${accentColor} rounded-full border-2 border-black`}
+          tw={`w-6 h-6 ${accentColor} rounded-full border-2 border-black flex`}
         ></div>
       </div>
     </div>
